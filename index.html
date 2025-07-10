@@ -379,7 +379,7 @@
     </div>
 
     <div class="filters">
-      <label for="depFilter">Department:</label>
+      <label for="depFilter">Dept:</label>
       <select id="depFilter" onchange="applyFilters()">
         <option value="">All</option>
         <option value="Putaway">Putaway</option>
@@ -387,36 +387,46 @@
         <option value="R.Pick">Retail Pick</option>
       </select>
 
-      <label for="weekFilter">Week:</label>
-      <select id="weekFilter" onchange="applyFilters()"></select>
+      <!-- filtro de mês (novo) -->
+<label for="monthFilter">Month:</label>
+<select id="monthFilter" onchange="applyFilters()">
+  <option value="">All</option>
+</select>
 
-      <label for="performanceFilter">Performance:</label>
-      <select id="performanceFilter" onchange="applyFilters()">
-        <option value="">All</option>
-        <option value="Well Done">Well Done</option>
-        <option value="Almost There">Almost There</option>
-        <option value="Poor">Poor</option>
-      </select>
+<!-- filtro de semana (existente, mas deslocado para depois do mês) -->
+<label for="weekFilter">Week:</label>
+<select id="weekFilter" onchange="applyFilters()"></select>
 
-      <label for="consecutiveDaysFilter">Consecutive Days Worked:</label>
-      <select id="consecutiveDaysFilter" onchange="applyFilters()">
-        <option value="">All</option>
-        <option value="2">2</option>
-        <option value="3">3</option>
-        <option value="4">4</option>
-        <option value="5">5</option>
-        <option value="6">6</option>
-        <option value="7">7</option>
-        <option value="8">8</option>
-        <option value="9">9</option>
-        <option value="10">10</option>
-        <option value=">10">>10</option>
-      </select>
+<!-- filtro de performance (permanece igual) -->
+<label for="performanceFilter">Performance:</label>
+<select id="performanceFilter" onchange="applyFilters()">
+  <option value="">All</option>
+  <option value="Well Done">Well Done</option>
+  <option value="Almost There">Almost There</option>
+  <option value="Poor">Poor</option>
+</select>
+
+<!-- filtro de dias consecutivos (permanece igual) -->
+<label for="consecutiveDaysFilter">Consec. Days Worked:</label>
+<select id="consecutiveDaysFilter" onchange="applyFilters()">
+  <option value="">All</option>
+  <option value="2">2</option>
+  <option value="3">3</option>
+  <option value="4">4</option>
+  <option value="5">5</option>
+  <option value="6">6</option>
+  <option value="7">7</option>
+  <option value="8">8</option>
+  <option value="9">9</option>
+  <option value="10">10</option>
+  <option value=">10">>10</option>
+</select>
+
 
       <label for="userIdFilter">User ID:</label>
       <input type="text" id="userIdFilter" oninput="applyFilters()" placeholder="Filter by User ID">
 
-      <label for="supervisorFilter">Supervisor:</label>
+      <label for="supervisorFilter">Supv:</label>
       <input type="text" id="supervisorFilter" oninput="applyFilters()" placeholder="Filter by Supervisor">
 
       <label for="userTypeFilter">User Type:</label>
@@ -527,10 +537,12 @@
     let consecutiveDaysCache = new Map();
 
     (function loadData() {
-      updateWeekFilter();
-      updateUserTypeFilter();
-      applyFilters();
-    })();
+  updateMonthFilter();      // <- novo
+  updateWeekFilter();
+  updateUserTypeFilter();
+  applyFilters();
+})();
+
 
     function openTab(evt, tabName) {
       var i, tabcontent, tablinks;
@@ -613,91 +625,122 @@
     }
 
     function processUpload(department, fileInputId, expectedFileName) {
-      document.getElementById(fileInputId).addEventListener('change', function(event) {
-        const file = event.target.files[0];
-        if (!file) {
-          alert(`No file selected for ${department.charAt(0).toUpperCase() + department.slice(1)}.`);
-          return;
-        }
-        if (file.name !== expectedFileName) {
-          alert(`Invalid file name. Please upload '${expectedFileName}' for ${department.charAt(0).toUpperCase() + department.slice(1)}. Found '${file.name}' instead.`);
-          return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          try {
-            const arrayBuffer = e.target.result;
-            const workbook = XLSX.read(arrayBuffer, {type: 'array'});
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-
-            const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1, defval: '', range: 6});
-
-            console.log(`File: ${file.name}, Total rows: ${rows.length}, Columns in first row: ${rows[0] ? rows[0].length : 0}`);
-
-            if (rows.length <= 1) {
-              alert('No data found in the file. Please ensure it contains data starting from row 8.');
-              return;
-            }
-
-            console.log('First data row (row 8):', rows[1]);
-
-            const isEcomPick = department === 'ecomPick';
-            const columnIndices = {
-              Date: 0,
-              UserID: 1,
-              Performance: 7,
-              Week: isEcomPick ? 16 : 15,
-              UserType: isEcomPick ? 27 : 25,
-              Supervisor: isEcomPick ? 28 : 26,
-              Dep: isEcomPick ? 29 : 27,
-              TotalWorkedHours: 5,
-              ProductiveHours: 6,
-              GapsHours: 8
-            };
-
-            const depName = department === 'putaway' ? 'Putaway' : department === 'ecomPick' ? 'E.Pick' : 'R.Pick';
-
-            const newData = rows.slice(1).map((row, index) => {
-              const serialDate = row[columnIndices.Date];
-              const formattedDate = typeof serialDate === 'number' ? excelSerialToDate(serialDate) : serialDate;
-              return {
-                Date: formattedDate || '',
-                UserID: row[columnIndices.UserID] || '',
-                Performance: row[columnIndices.Performance] || '',
-                Week: row[columnIndices.Week] || '',
-                UserType: String(row[columnIndices.UserType] || '').trim(),
-                Supervisor: row[columnIndices.Supervisor] || '',
-                Dep: depName,
-                TotalWorkedHours: row[columnIndices.TotalWorkedHours] || '',
-                ProductiveHours: row[columnIndices.ProductiveHours] || '',
-                GapsHours: row[columnIndices.GapsHours] || ''
-              };
-            }).filter(row => row.Date && row.UserID);
-
-            if (newData.length === 0) {
-              alert('No valid data found in the file after processing. Please ensure Date and UserID columns are populated starting from row 8.');
-              return;
-            }
-
-            allData = allData.filter(d => d.Dep !== depName);
-            allData = allData.concat(newData);
-            alert(`${newData.length} row(s) loaded successfully for ${department.charAt(0).toUpperCase() + department.slice(1)}.`);
-            console.log('All Dep values in loaded data:', newData.map(row => row.Dep));
-            console.log('All Performance values in loaded data:', newData.map(row => row.Performance));
-
-            updateWeekFilter();
-            updateUserTypeFilter();
-            applyFilters();
-          } catch (error) {
-            alert('Error processing file: ' + error.message + '. Please ensure it is a valid XLSB file.');
-            console.error(error);
-          }
-        };
-        reader.readAsArrayBuffer(file);
-      });
+  document.getElementById(fileInputId).addEventListener('change', function(event) {
+    const file = event.target.files[0];
+    if (!file) {
+      alert(`No file selected for ${department}.`);
+      return;
     }
+    if (file.name !== expectedFileName) {
+      alert(`Invalid file name. Please upload '${expectedFileName}'. Found '${file.name}'.`);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        // 1) carrega a workbook
+        const arrayBuffer = e.target.result;
+        const workbook    = XLSX.read(arrayBuffer, { type: 'array' });
+        const sheetName   = workbook.SheetNames[0];
+        const worksheet   = workbook.Sheets[sheetName];
+
+        // 2) transforma em array de arrays (linha 7 = cabeçalho, linha 8 em diante = dados)
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '', range: 6 });
+
+        console.log(`File: ${file.name}, rows: ${rows.length}, cols in header: ${rows[0].length}`);
+        console.log('First data row (row 8):', rows[1]);
+
+        // === substituição começa aqui ===
+
+        // 3) detecta dinamicamente índices a partir do texto do cabeçalho
+        const headers = rows[0].map(h => String(h).trim());
+        const idx = name => headers.indexOf(name);
+
+        // 4) determina nome de departamento
+        const depName = department === 'putaway'
+          ? 'Putaway'
+          : department === 'ecomPick'
+            ? 'E.Pick'
+            : 'R.Pick';
+
+        // 5) mapeia cada linha em objeto, usando idx()
+        const newData = rows.slice(1).map(row => {
+          const rawDate      = row[idx('Date')];
+          const formattedDate = typeof rawDate === 'number'
+            ? excelSerialToDate(rawDate)
+            : rawDate;
+
+          return {
+            Date:             formattedDate || '',
+            UserID:           row[idx('User ID')]          || '',
+            Performance:      row[idx('Performance')]      || '',
+            Week:             String(row[idx('Week')]      || '').trim(),
+            Month:            String(row[idx('Month')]     || '').trim(),
+            UserType:         String(row[idx('User Type')] || '').trim(),
+            Supervisor:       String(row[idx('Supervisor')]|| '').trim(),
+            Dep:              depName,
+            TotalWorkedHours: row[idx('Total Hours')]      || '',
+            ProductiveHours:  row[idx('Prod. Hours')]      || '',
+            GapsHours:        row[idx('Total Gaps')]       || ''
+          };
+        }).filter(r => r.Date && r.UserID);
+
+        // === substituição termina aqui ===
+
+        if (newData.length === 0) {
+          alert('No valid data found. Please check your headers and data in row 8+.');
+          return;
+        }
+
+        // 6) atualiza allData, dispara UI
+allData = allData.filter(d => d.Dep !== depName).concat(newData);
+alert(`${newData.length} row(s) loaded successfully for ${depName}.`);
+console.log('Loaded Dep values:', newData.map(r => r.Dep));
+console.log('Loaded Performance values:', newData.map(r => r.Performance));
+
+// ——— repopula filtros ———
+updateMonthFilter();      // <— garante que o dropdown de mês seja preenchido
+updateWeekFilter();
+updateUserTypeFilter();
+applyFilters();
+
+      } catch (error) {
+        alert('Error processing file: ' + error.message);
+        console.error(error);
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+  });
+}
+function updateMonthFilter() {
+  const monthFilter = document.getElementById('monthFilter');
+  const months = [...new Set(allData.map(d => d.Month))]
+    .filter(m => m)  // remove vazios
+    .sort((a, b) => {
+      // 1) define a ordem desejada dos meses
+      const monthOrder = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+      // 2) separa abreviação e ano (ex: "Jan_25" → ["Jan","25"])
+      const [mA, yA] = a.split('_');
+      const [mB, yB] = b.split('_');
+
+      // 3) compara primeiro pelo índice no monthOrder
+      const idxA = monthOrder.indexOf(mA);
+      const idxB = monthOrder.indexOf(mB);
+      if (idxA !== idxB) return idxA - idxB;
+
+      // 4) se o mês for igual (mesmo abreviado), compara pelo ano numérico
+      return parseInt(yA, 10) - parseInt(yB, 10);
+    });
+
+  monthFilter.innerHTML =
+    '<option value="">All</option>' +
+    months.map(m => `<option value="${m}">${m}</option>`).join('');
+}
+
+
 
     function updateWeekFilter() {
       const weekFilter = document.getElementById('weekFilter');
@@ -789,19 +832,31 @@
     }
 
     function applyFilters() {
-      console.time('applyFilters');
-      document.body.style.cursor = 'wait';
-      const depFilter = document.getElementById('depFilter').value;
-      const weekFilter = document.getElementById('weekFilter').value;
-      const performanceFilter = document.getElementById('performanceFilter').value;
-      const consecutiveDaysFilter = document.getElementById('consecutiveDaysFilter').value;
-      const userIdFilter = document.getElementById('userIdFilter').value.toLowerCase();
-      const supervisorFilter = document.getElementById('supervisorFilter').value.toLowerCase();
-      const userTypeFilter = document.getElementById('userTypeFilter').value;
-      const efficiencyFilter = document.getElementById('efficiencyFilter').value;
+  console.time('applyFilters');
+  document.body.style.cursor = 'wait';
 
-      filteredData = allData;
-        // ——— NOVO: FILTRO DE EFICIÊNCIA ———
+  // 1) Lê o valor do filtro de mês
+  const monthFilter           = document.getElementById('monthFilter').value;
+
+  // 2) Lê os valores dos demais filtros
+  const depFilter             = document.getElementById('depFilter').value;
+  const weekFilter            = document.getElementById('weekFilter').value;
+  const performanceFilter     = document.getElementById('performanceFilter').value;
+  const consecutiveDaysFilter = document.getElementById('consecutiveDaysFilter').value;
+  const userIdFilter          = document.getElementById('userIdFilter').value.toLowerCase();
+  const supervisorFilter      = document.getElementById('supervisorFilter').value.toLowerCase();
+  const userTypeFilter        = document.getElementById('userTypeFilter').value;
+  const efficiencyFilter      = document.getElementById('efficiencyFilter').value;
+
+  // 3) Reset do array
+  filteredData = allData;
+
+  // 4) Aplica filtro de mês ANTES de tudo
+  if (monthFilter) {
+    filteredData = filteredData.filter(d => d.Month === monthFilter);
+  }
+
+  // ——— FILTRO DE EFICIÊNCIA EXISTENTE ———
   if (efficiencyFilter) {
     filteredData = filteredData.filter(d => {
       const pct = getPerformancePercentage(d.Performance);
@@ -1220,7 +1275,7 @@
         options: {
           devicePixelRatio: 2,
           plugins: {
-            title: { display: true, text: 'Consecutive Days Worked', font: { size: 12 } }
+            title: { display: true, text: 'Consec. Days Worked', font: { size: 12 } }
           },
           scales: {
             y: { beginAtZero: true, ticks: { font: { size: 10 } } },
